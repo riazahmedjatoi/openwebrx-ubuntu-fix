@@ -22,6 +22,10 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# lsb-release pehle install karo
+apt-get update -qq
+apt-get install -y lsb-release -qq
+
 # Ubuntu version check
 UBUNTU_VERSION=$(lsb_release -rs)
 PYTHON_VERSION=$(python3 --version | cut -d' ' -f2)
@@ -30,12 +34,11 @@ echo -e "${YELLOW}Detected: Ubuntu $UBUNTU_VERSION | Python $PYTHON_VERSION${NC}
 
 # Step 1: Dependencies
 echo -e "\n${GREEN}[1/8] Installing build dependencies...${NC}"
-apt-get update -qq
 apt-get install -y git cmake debhelper dh-python \
   python3-all python3-setuptools python3-dev \
   libpython3-dev libusb-1.0-0-dev librtlsdr-dev \
   rtl-sdr equivs build-essential libfftw3-dev \
-  libsamplerate0-dev pkg-config lsb-release wget curl
+  libsamplerate0-dev pkg-config wget curl
 
 # Step 2: OpenWebRX official repo
 echo -e "\n${GREEN}[2/8] Adding OpenWebRX official repository...${NC}"
@@ -159,7 +162,7 @@ ldconfig
 cd /tmp
 
 # Step 5.1: owrx-connector dummy for apt
-mkdir -p /tmp/dummies && cd /tmp/dummies
+cd /tmp/dummies
 cat > owrx-connector-dummy << EOF
 Section: misc
 Priority: optional
