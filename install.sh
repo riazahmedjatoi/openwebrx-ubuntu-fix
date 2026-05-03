@@ -25,18 +25,20 @@ fi
 # Ubuntu version check
 UBUNTU_VERSION=$(lsb_release -rs)
 PYTHON_VERSION=$(python3 --version | cut -d' ' -f2)
+PYTHON_TAG=$(python3 -c "import sys; print(f'cpython-{sys.version_info.major}{sys.version_info.minor}')")
 echo -e "${YELLOW}Detected: Ubuntu $UBUNTU_VERSION | Python $PYTHON_VERSION${NC}"
 
 # Step 1: Dependencies
-echo -e "\n${GREEN}[1/7] Installing build dependencies...${NC}"
+echo -e "\n${GREEN}[1/8] Installing build dependencies...${NC}"
 apt-get update -qq
 apt-get install -y git cmake debhelper dh-python \
-  python3-all python3-setuptools libusb-1.0-0-dev \
-  librtlsdr-dev rtl-sdr equivs build-essential \
-  libfftw3-dev lsb-release
+  python3-all python3-setuptools python3-dev \
+  libpython3-dev libusb-1.0-0-dev librtlsdr-dev \
+  rtl-sdr equivs build-essential libfftw3-dev \
+  libsamplerate0-dev pkg-config lsb-release wget curl
 
 # Step 2: OpenWebRX official repo
-echo -e "\n${GREEN}[2/7] Adding OpenWebRX official repository...${NC}"
+echo -e "\n${GREEN}[2/8] Adding OpenWebRX official repository...${NC}"
 wget -q -O /usr/share/keyrings/openwebrx.gpg \
   https://repo.openwebrx.de/openwebrx.gpg
 echo "deb [signed-by=/usr/share/keyrings/openwebrx.gpg] \
@@ -45,7 +47,7 @@ echo "deb [signed-by=/usr/share/keyrings/openwebrx.gpg] \
 apt-get update -qq
 
 # Step 3: libcsdr source se build
-echo -e "\n${GREEN}[3/7] Building libcsdr 0.19 from source...${NC}"
+echo -e "\n${GREEN}[3/8] Building libcsdr 0.19 from source...${NC}"
 cd /tmp
 rm -rf csdr
 git clone https://github.com/jketterl/csdr
@@ -56,16 +58,82 @@ make install
 ldconfig
 cd /tmp
 
+# Step 3.1: Dummy packages for apt dependency resolution
+echo -e "\n${GREEN}[3.1/8] Creating compatibility dummy packages...${NC}"
+mkdir -p /tmp/dummies && cd /tmp/dummies
+
+# libcsdr0 dummy
+cat > libcsdr0-dummy << EOF
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Package: libcsdr0
+Version: 0.19.0
+Description: Dummy package for libcsdr0
+EOF
+equivs-build libcsdr0-dummy
+dpkg -i libcsdr0_0.19.0_all.deb
+
+# libcsdr-dev dummy
+cat > libcsdr-dev-dummy << EOF
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Package: libcsdr-dev
+Version: 0.19.0
+Provides: libcsdr-dev
+Description: Dummy package for libcsdr-dev
+EOF
+equivs-build libcsdr-dev-dummy
+dpkg -i libcsdr-dev_0.19.0_all.deb
+
+# librtlsdr0 dummy — correct version
+RTLSDR_VERSION=$(dpkg -l librtlsdr2 2>/dev/null | grep librtlsdr2 | awk '{print $3}' | cut -d: -f2)
+if [ -z "$RTLSDR_VERSION" ]; then
+  RTLSDR_VERSION="2.0.2-2"
+fi
+
+cat > librtlsdr0-dummy << EOF
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Package: librtlsdr0
+Version: $RTLSDR_VERSION
+Description: Dummy package for librtlsdr0 compatibility
+EOF
+equivs-build librtlsdr0-dummy
+dpkg -i librtlsdr0_${RTLSDR_VERSION}_all.deb
+
+# soapysdr-tools dummy
+cat > soapysdr-tools-dummy << EOF
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Package: soapysdr-tools
+Version: 0.8.0
+Description: Dummy package for soapysdr-tools
+EOF
+equivs-build soapysdr-tools-dummy
+dpkg -i soapysdr-tools_0.8.0_all.deb
+
+cd /tmp
+
 # Step 4: pycsdr build
-echo -e "\n${GREEN}[4/7] Building pycsdr for Python $PYTHON_VERSION...${NC}"
+echo -e "\n${GREEN}[4/8] Building pycsdr for Python $PYTHON_VERSION...${NC}"
 cd /tmp
 rm -rf pycsdr
 git clone https://github.com/jketterl/pycsdr
 cd pycsdr
-dpkg-buildpackage -us -uc -b
+
+# debian/rules fix — TAB issue
+python3 -c "
+content = '#!/usr/bin/make -f\nexport PYBUILD_NAME=pycsdr\n%:\n\tdh \$@ --with python3 --buildsystem=pybuild\n\noverride_dh_shlibdeps:\n\tdh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info\n'
+open('debian/rules', 'w').write(content)
+"
+
+dpkg-buildpackage -us -uc -b -d
 
 # .so copy — key fix
-PYTHON_TAG=$(python3 -c "import sys; print(f'cpython-{sys.version_info.major}{sys.version_info.minor}')")
 NEW_SO=$(find .pybuild -name "modules.${PYTHON_TAG}-x86_64-linux-gnu.so" | head -1)
 
 if [ -z "$NEW_SO" ]; then
@@ -73,14 +141,13 @@ if [ -z "$NEW_SO" ]; then
   exit 1
 fi
 
-# Pehle install karo phir .so replace karo
 dpkg -i ../python3-csdr_*.deb
 cp "$NEW_SO" /usr/lib/python3/dist-packages/pycsdr/modules.${PYTHON_TAG}-x86_64-linux-gnu.so
 echo -e "${GREEN}.so file replaced successfully!${NC}"
 cd /tmp
 
 # Step 5: owrx_connector build
-echo -e "\n${GREEN}[5/7] Building owrx_connector...${NC}"
+echo -e "\n${GREEN}[5/8] Building owrx_connector...${NC}"
 cd /tmp
 rm -rf owrx_connector
 git clone https://github.com/jketterl/owrx_connector
@@ -91,27 +158,36 @@ make install
 ldconfig
 cd /tmp
 
-# Step 6: librtlsdr0 dummy package
-echo -e "\n${GREEN}[6/7] Creating librtlsdr0 compatibility package...${NC}"
-mkdir -p /tmp/rtlsdr-dummy && cd /tmp/rtlsdr-dummy
-cat > librtlsdr0-dummy << EOF
+# Step 5.1: owrx-connector dummy for apt
+mkdir -p /tmp/dummies && cd /tmp/dummies
+cat > owrx-connector-dummy << EOF
 Section: misc
 Priority: optional
 Standards-Version: 3.9.2
-Package: librtlsdr0
-Version: 2.0.1
-Description: Dummy package for librtlsdr0 → librtlsdr2 compatibility
+Package: owrx-connector
+Version: 0.7.0
+Description: Dummy package for owrx-connector
 EOF
-equivs-build librtlsdr0-dummy
-dpkg -i librtlsdr0_2.0.1_all.deb
+equivs-build owrx-connector-dummy
+dpkg -i owrx-connector_0.7.0_all.deb
+cd /tmp
+
+# Step 6: Verify .so linkage
+echo -e "\n${GREEN}[6/8] Verifying library linkage...${NC}"
+SO_FILE="/usr/lib/python3/dist-packages/pycsdr/modules.${PYTHON_TAG}-x86_64-linux-gnu.so"
+if ldd "$SO_FILE" | grep -q "libcsdr"; then
+  echo -e "${GREEN}libcsdr linked correctly!${NC}"
+else
+  echo -e "${RED}Warning: libcsdr not linked — something may be wrong${NC}"
+fi
 
 # Step 7: OpenWebRX install
-echo -e "\n${GREEN}[7/7] Installing OpenWebRX...${NC}"
-apt-get install -y openwebrx
+echo -e "\n${GREEN}[7/8] Installing OpenWebRX...${NC}"
+apt-get install -y --no-install-recommends openwebrx
 
-# Cleanup
-echo -e "\n${YELLOW}Cleaning up...${NC}"
-rm -rf /tmp/csdr /tmp/pycsdr /tmp/owrx_connector /tmp/rtlsdr-dummy
+# Step 8: Cleanup
+echo -e "\n${GREEN}[8/8] Cleaning up...${NC}"
+rm -rf /tmp/csdr /tmp/pycsdr /tmp/owrx_connector /tmp/dummies
 
 echo -e "\n${GREEN}"
 echo "================================================="
