@@ -91,10 +91,11 @@ equivs-build libcsdr-dev-dummy
 dpkg -i libcsdr-dev_0.19.0_all.deb
 
 # librtlsdr0 dummy — correct version
-RTLSDR_VERSION=$(dpkg -l librtlsdr2 2>/dev/null | grep librtlsdr2 | awk '{print $3}' | cut -d: -f2)
-if [ -z "$RTLSDR_VERSION" ]; then
+RTLSDR_VERSION=$(dpkg -l 2>/dev/null | grep librtlsdr2 | awk '{print $3}' | cut -d: -f2 | head -1)
+if [ -z "$RTLSDR_VERSION" ] || [ "$RTLSDR_VERSION" = "<none>" ]; then
   RTLSDR_VERSION="2.0.2-2"
 fi
+echo "Using librtlsdr0 version: $RTLSDR_VERSION"
 
 cat > librtlsdr0-dummy << EOF
 Section: misc
