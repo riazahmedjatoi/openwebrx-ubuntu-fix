@@ -156,7 +156,9 @@ cd /tmp
 rm -rf owrx_connector
 git clone https://github.com/jketterl/owrx_connector
 cd owrx_connector && mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXE_LINKER_FLAGS="-lusb-1.0"
+cmake .. -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_FIND_LIBRARY_SUFFIXES=".so" \
+  -DCMAKE_EXE_LINKER_FLAGS="-lusb-1.0"
 make -j$(nproc)
 make install
 ldconfig
