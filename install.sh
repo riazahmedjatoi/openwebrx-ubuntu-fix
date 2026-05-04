@@ -22,26 +22,29 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# lsb-release pehle install karo
+# lsb-release aur python3 pehle install karo
 apt-get update -qq
 apt-get install -y lsb-release python3 -qq
 
-# Ubuntu version check
+# Version detect
 UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_CODENAME=$(lsb_release -cs)
 PYTHON_VERSION=$(python3 --version | cut -d' ' -f2)
 PYTHON_TAG=$(python3 -c "import sys; print(f'cpython-{sys.version_info.major}{sys.version_info.minor}')")
-echo -e "${YELLOW}Detected: Ubuntu $UBUNTU_VERSION | Python $PYTHON_VERSION${NC}"
 
-# Step 1: Dependencies
-echo -e "\n${GREEN}[1/8] Installing build dependencies...${NC}"
-apt-get install -y git cmake debhelper dh-python \
-  python3-all python3-setuptools python3-dev \
-  libpython3-dev libusb-1.0-0-dev librtlsdr-dev \
-  rtl-sdr equivs build-essential libfftw3-dev \
-  libsamplerate0-dev pkg-config wget curl
+echo -e "${YELLOW}Detected: Ubuntu $UBUNTU_VERSION ($UBUNTU_CODENAME) | Python $PYTHON_VERSION${NC}"
+
+# Step 1: Build Dependencies
+echo -e "\n${GREEN}[1/9] Installing build dependencies...${NC}"
+apt-get install -y \
+  git cmake build-essential pkg-config \
+  debhelper dh-python equivs \
+  python3-all python3-setuptools python3-dev libpython3-dev \
+  libusb-1.0-0-dev libfftw3-dev libsamplerate0-dev \
+  wget curl -qq
 
 # Step 2: OpenWebRX official repo
-echo -e "\n${GREEN}[2/8] Adding OpenWebRX official repository...${NC}"
+echo -e "\n${GREEN}[2/9] Adding OpenWebRX official repository...${NC}"
 wget -q -O /usr/share/keyrings/openwebrx.gpg \
   https://repo.openwebrx.de/openwebrx.gpg
 echo "deb [signed-by=/usr/share/keyrings/openwebrx.gpg] \
@@ -50,9 +53,8 @@ echo "deb [signed-by=/usr/share/keyrings/openwebrx.gpg] \
 apt-get update -qq
 
 # Step 3: libcsdr source se build
-echo -e "\n${GREEN}[3/8] Building libcsdr 0.19 from source...${NC}"
-cd /tmp
-rm -rf csdr
+echo -e "\n${GREEN}[3/9] Building libcsdr 0.19 from source...${NC}"
+cd /tmp && rm -rf csdr
 git clone https://github.com/jketterl/csdr
 cd csdr && mkdir -p build && cd build
 cmake .. -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release
@@ -61,8 +63,19 @@ make install
 ldconfig
 cd /tmp
 
-# Step 3.1: Dummy packages for apt dependency resolution
-echo -e "\n${GREEN}[3.1/8] Creating compatibility dummy packages...${NC}"
+# Step 4: librtlsdr source se build — apt wala nahi
+echo -e "\n${GREEN}[4/9] Building librtlsdr from source...${NC}"
+cd /tmp && rm -rf rtl-sdr
+git clone https://github.com/osmocom/rtl-sdr
+cd rtl-sdr && mkdir -p build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+make install
+ldconfig
+cd /tmp
+
+# Step 5: Dummy packages banao
+echo -e "\n${GREEN}[5/9] Creating compatibility dummy packages...${NC}"
 mkdir -p /tmp/dummies && cd /tmp/dummies
 
 # libcsdr0 dummy
@@ -74,7 +87,7 @@ Package: libcsdr0
 Version: 0.19.0
 Description: Dummy package for libcsdr0
 EOF
-equivs-build libcsdr0-dummy
+equivs-build libcsdr0-dummy -o libcsdr0_0.19.0_all.deb
 dpkg -i libcsdr0_0.19.0_all.deb
 
 # libcsdr-dev dummy
@@ -87,26 +100,67 @@ Version: 0.19.0
 Provides: libcsdr-dev
 Description: Dummy package for libcsdr-dev
 EOF
-equivs-build libcsdr-dev-dummy
+equivs-build libcsdr-dev-dummy -o libcsdr-dev_0.19.0_all.deb
 dpkg -i libcsdr-dev_0.19.0_all.deb
 
-# librtlsdr0 dummy — correct version
-RTLSDR_VERSION=$(dpkg -l 2>/dev/null | grep librtlsdr2 | awk '{print $3}' | head -1)
-if [ -z "$RTLSDR_VERSION" ] || [ "$RTLSDR_VERSION" = "<none>" ]; then
-  RTLSDR_VERSION="2.0.2-2"
+# librtlsdr0 dummy — exact version detect karo jo librtlsdr-dev expect karta hai
+RTLSDR_DEP_VER=$(apt-cache show librtlsdr-dev 2>/dev/null \
+  | grep "^Depends:" \
+  | grep -o 'librtlsdr0 (= [^)]*' \
+  | sed 's/librtlsdr0 (= //' \
+  | head -1)
+if [ -z "$RTLSDR_DEP_VER" ]; then
+  RTLSDR_DEP_VER="2.0.2-2"
 fi
-echo "Using librtlsdr0 version: $RTLSDR_VERSION"
+echo "librtlsdr0 dummy version: $RTLSDR_DEP_VER"
 
 cat > librtlsdr0-dummy << EOF
 Section: misc
 Priority: optional
 Standards-Version: 3.9.2
 Package: librtlsdr0
-Version: $RTLSDR_VERSION
+Version: $RTLSDR_DEP_VER
 Description: Dummy package for librtlsdr0 compatibility
 EOF
-equivs-build librtlsdr0-dummy
-dpkg -i librtlsdr0_${RTLSDR_VERSION}_all.deb
+equivs-build librtlsdr0-dummy -o librtlsdr0_${RTLSDR_DEP_VER}_all.deb
+dpkg -i librtlsdr0_${RTLSDR_DEP_VER}_all.deb
+
+# librtlsdr2 dummy
+cat > librtlsdr2-dummy << EOF
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Package: librtlsdr2
+Version: $RTLSDR_DEP_VER
+Description: Dummy package for librtlsdr2 compatibility
+EOF
+equivs-build librtlsdr2-dummy -o librtlsdr2_${RTLSDR_DEP_VER}_all.deb
+dpkg -i librtlsdr2_${RTLSDR_DEP_VER}_all.deb
+
+# rtl-sdr dummy
+cat > rtl-sdr-dummy << EOF
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Package: rtl-sdr
+Version: $RTLSDR_DEP_VER
+Description: Dummy package for rtl-sdr
+EOF
+equivs-build rtl-sdr-dummy -o rtl-sdr_${RTLSDR_DEP_VER}_all.deb
+dpkg -i rtl-sdr_${RTLSDR_DEP_VER}_all.deb
+
+# librtlsdr-dev dummy
+cat > librtlsdr-dev-dummy << EOF
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Package: librtlsdr-dev
+Version: $RTLSDR_DEP_VER
+Provides: librtlsdr-dev
+Description: Dummy package for librtlsdr-dev
+EOF
+equivs-build librtlsdr-dev-dummy -o librtlsdr-dev_${RTLSDR_DEP_VER}_all.deb
+dpkg -i librtlsdr-dev_${RTLSDR_DEP_VER}_all.deb
 
 # soapysdr-tools dummy
 cat > soapysdr-tools-dummy << EOF
@@ -117,19 +171,18 @@ Package: soapysdr-tools
 Version: 0.8.0
 Description: Dummy package for soapysdr-tools
 EOF
-equivs-build soapysdr-tools-dummy
+equivs-build soapysdr-tools-dummy -o soapysdr-tools_0.8.0_all.deb
 dpkg -i soapysdr-tools_0.8.0_all.deb
 
 cd /tmp
 
-# Step 4: pycsdr build
-echo -e "\n${GREEN}[4/8] Building pycsdr for Python $PYTHON_VERSION...${NC}"
-cd /tmp
-rm -rf pycsdr
+# Step 6: pycsdr build
+echo -e "\n${GREEN}[6/9] Building pycsdr for Python $PYTHON_VERSION...${NC}"
+cd /tmp && rm -rf pycsdr
 git clone https://github.com/jketterl/pycsdr
 cd pycsdr
 
-# debian/rules fix — TAB issue
+# debian/rules fix — TAB required
 python3 -c "
 content = '#!/usr/bin/make -f\nexport PYBUILD_NAME=pycsdr\n%:\n\tdh \$@ --with python3 --buildsystem=pybuild\n\noverride_dh_shlibdeps:\n\tdh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info\n'
 open('debian/rules', 'w').write(content)
@@ -139,34 +192,34 @@ dpkg-buildpackage -us -uc -b -d
 
 # .so copy — key fix
 NEW_SO=$(find .pybuild -name "modules.${PYTHON_TAG}-x86_64-linux-gnu.so" | head -1)
-
 if [ -z "$NEW_SO" ]; then
-  echo -e "${RED}Error: .so file not found!${NC}"
+  echo -e "${RED}Error: .so file not found for $PYTHON_TAG!${NC}"
   exit 1
 fi
 
 dpkg -i ../python3-csdr_*.deb
 cp "$NEW_SO" /usr/lib/python3/dist-packages/pycsdr/modules.${PYTHON_TAG}-x86_64-linux-gnu.so
-echo -e "${GREEN}.so file replaced successfully!${NC}"
+echo -e "${GREEN}.so replaced: $PYTHON_TAG${NC}"
 cd /tmp
 
-# Step 5: owrx_connector build
-echo -e "\n${GREEN}[5/8] Building owrx_connector...${NC}"
-cd /tmp
-rm -rf owrx_connector
-git clone https://github.com/jketterl/owrx_connector
+# Step 7: owrx_connector build
+echo -e "\n${GREEN}[7/9] Building owrx_connector...${NC}"
+cd /tmp && rm -rf owrx_connector
 
-# Force shared library — static remove karo
+# Static library hata do — shared use hogi
 rm -f /usr/lib/x86_64-linux-gnu/librtlsdr.a
 
+git clone https://github.com/jketterl/owrx_connector
 cd owrx_connector && mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake .. \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 make -j$(nproc)
 make install
 ldconfig
 cd /tmp
 
-# Step 5.1: owrx-connector dummy for apt
+# owrx-connector dummy
 cd /tmp/dummies
 cat > owrx-connector-dummy << EOF
 Section: misc
@@ -176,30 +229,30 @@ Package: owrx-connector
 Version: 0.7.0
 Description: Dummy package for owrx-connector
 EOF
-equivs-build owrx-connector-dummy
+equivs-build owrx-connector-dummy -o owrx-connector_0.7.0_all.deb
 dpkg -i owrx-connector_0.7.0_all.deb
 cd /tmp
 
-# Step 6: Verify .so linkage
-echo -e "\n${GREEN}[6/8] Verifying library linkage...${NC}"
+# Step 8: Verify
+echo -e "\n${GREEN}[8/9] Verifying...${NC}"
 SO_FILE="/usr/lib/python3/dist-packages/pycsdr/modules.${PYTHON_TAG}-x86_64-linux-gnu.so"
 if ldd "$SO_FILE" | grep -q "libcsdr"; then
   echo -e "${GREEN}libcsdr linked correctly!${NC}"
 else
-  echo -e "${RED}Warning: libcsdr not linked — something may be wrong${NC}"
+  echo -e "${RED}Warning: libcsdr not linked!${NC}"
 fi
 
-# Step 7: OpenWebRX install
-echo -e "\n${GREEN}[7/8] Installing OpenWebRX...${NC}"
+# Step 9: OpenWebRX install
+echo -e "\n${GREEN}[9/9] Installing OpenWebRX...${NC}"
 apt-get install -y --no-install-recommends openwebrx
 
-# Step 8: Cleanup
-echo -e "\n${GREEN}[8/8] Cleaning up...${NC}"
-rm -rf /tmp/csdr /tmp/pycsdr /tmp/owrx_connector /tmp/dummies
+# Cleanup
+rm -rf /tmp/csdr /tmp/rtl-sdr /tmp/pycsdr /tmp/owrx_connector /tmp/dummies
 
 echo -e "\n${GREEN}"
 echo "================================================="
 echo "  OpenWebRX Successfully Installed!"
+echo "  Ubuntu: $UBUNTU_VERSION | Python: $PYTHON_VERSION"
 echo "  Open browser: http://localhost:8073"
 echo "  Admin setup:  sudo dpkg-reconfigure openwebrx"
 echo "================================================="
