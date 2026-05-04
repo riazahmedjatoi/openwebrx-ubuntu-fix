@@ -155,10 +155,12 @@ echo -e "\n${GREEN}[5/8] Building owrx_connector...${NC}"
 cd /tmp
 rm -rf owrx_connector
 git clone https://github.com/jketterl/owrx_connector
+
+# Force shared library — static remove karo
+rm -f /usr/lib/x86_64-linux-gnu/librtlsdr.a
+
 cd owrx_connector && mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_FIND_LIBRARY_SUFFIXES=".so" \
-  -DCMAKE_EXE_LINKER_FLAGS="-lusb-1.0"
+cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 make install
 ldconfig
