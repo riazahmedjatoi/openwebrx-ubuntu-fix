@@ -160,7 +160,7 @@ git clone https://github.com/jketterl/owrx_connector
 rm -f /usr/lib/x86_64-linux-gnu/librtlsdr.a
 
 cd owrx_connector && mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 make -j$(nproc)
 make install
 ldconfig
