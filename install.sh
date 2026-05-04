@@ -87,7 +87,7 @@ Package: libcsdr0
 Version: 0.19.0
 Description: Dummy package for libcsdr0
 EOF
-equivs-build libcsdr0-dummy -o libcsdr0_0.19.0_all.deb
+equivs-build libcsdr0-dummy
 dpkg -i libcsdr0_0.19.0_all.deb
 
 # libcsdr-dev dummy
@@ -100,7 +100,7 @@ Version: 0.19.0
 Provides: libcsdr-dev
 Description: Dummy package for libcsdr-dev
 EOF
-equivs-build libcsdr-dev-dummy -o libcsdr-dev_0.19.0_all.deb
+equivs-build libcsdr-dev-dummy
 dpkg -i libcsdr-dev_0.19.0_all.deb
 
 # librtlsdr0 dummy — exact version detect karo jo librtlsdr-dev expect karta hai
@@ -122,7 +122,7 @@ Package: librtlsdr0
 Version: $RTLSDR_DEP_VER
 Description: Dummy package for librtlsdr0 compatibility
 EOF
-equivs-build librtlsdr0-dummy -o librtlsdr0_${RTLSDR_DEP_VER}_all.deb
+equivs-build librtlsdr0-dummy
 dpkg -i librtlsdr0_${RTLSDR_DEP_VER}_all.deb
 
 # librtlsdr2 dummy
@@ -134,7 +134,7 @@ Package: librtlsdr2
 Version: $RTLSDR_DEP_VER
 Description: Dummy package for librtlsdr2 compatibility
 EOF
-equivs-build librtlsdr2-dummy -o librtlsdr2_${RTLSDR_DEP_VER}_all.deb
+equivs-build librtlsdr2-dummy
 dpkg -i librtlsdr2_${RTLSDR_DEP_VER}_all.deb
 
 # rtl-sdr dummy
@@ -146,7 +146,7 @@ Package: rtl-sdr
 Version: $RTLSDR_DEP_VER
 Description: Dummy package for rtl-sdr
 EOF
-equivs-build rtl-sdr-dummy -o rtl-sdr_${RTLSDR_DEP_VER}_all.deb
+equivs-build rtl-sdr-dummy
 dpkg -i rtl-sdr_${RTLSDR_DEP_VER}_all.deb
 
 # librtlsdr-dev dummy
@@ -159,7 +159,7 @@ Version: $RTLSDR_DEP_VER
 Provides: librtlsdr-dev
 Description: Dummy package for librtlsdr-dev
 EOF
-equivs-build librtlsdr-dev-dummy -o librtlsdr-dev_${RTLSDR_DEP_VER}_all.deb
+equivs-build librtlsdr-dev-dummy
 dpkg -i librtlsdr-dev_${RTLSDR_DEP_VER}_all.deb
 
 # soapysdr-tools dummy
@@ -171,7 +171,7 @@ Package: soapysdr-tools
 Version: 0.8.0
 Description: Dummy package for soapysdr-tools
 EOF
-equivs-build soapysdr-tools-dummy -o soapysdr-tools_0.8.0_all.deb
+equivs-build soapysdr-tools-dummy
 dpkg -i soapysdr-tools_0.8.0_all.deb
 
 cd /tmp
@@ -229,7 +229,7 @@ Package: owrx-connector
 Version: 0.7.0
 Description: Dummy package for owrx-connector
 EOF
-equivs-build owrx-connector-dummy -o owrx-connector_0.7.0_all.deb
+equivs-build owrx-connector-dummy
 dpkg -i owrx-connector_0.7.0_all.deb
 cd /tmp
 
