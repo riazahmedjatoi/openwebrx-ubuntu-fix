@@ -24,7 +24,7 @@ fi
 
 # lsb-release pehle install karo
 apt-get update -qq
-apt-get install -y lsb-release -qq
+apt-get install -y lsb-release python3 -qq
 
 # Ubuntu version check
 UBUNTU_VERSION=$(lsb_release -rs)
